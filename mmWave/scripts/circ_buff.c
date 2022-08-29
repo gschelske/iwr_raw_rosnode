@@ -93,7 +93,7 @@ void pad_and_add_msg(int64_t seq_c,
     int64_t num_zeros = (seq_n - seq_c - 1) * 728;
     //printf(stderr, "INFO: current sequence number %ld, received %ld\n", seq_c, seq_n);
     if(num_zeros > 0){
-        fprintf(stderr, "WARN: Padding %ld zeros\n", num_zeros);
+        // fprintf(stderr, "WARN: Padding %ld zeros\n", num_zeros);
         add_zeros(num_zeros, buffer, buffer_len, put_idx, frame_size, pop_frame_idx);
     }
 

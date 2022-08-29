@@ -79,7 +79,6 @@ class ring_buffer:
         self.add_to_queue()
 
     def pad_and_add_msg(self, seq_c, seq_n, msg):
-
         self.c_file.pad_and_add_msg(seq_c,
                                     seq_n,
                                     msg,
@@ -94,6 +93,4 @@ class ring_buffer:
     def add_to_queue(self):
         if self.pop_array.value != -1:
             data = self.data[self.frame_size.value * self.pop_array.value:self.frame_size.value * (self.pop_array.value + 1)].copy()
-            # import sys
-            # print(sys.getsizeof(data))
             self.queue.put(data)

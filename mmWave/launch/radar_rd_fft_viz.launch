@@ -1,8 +1,9 @@
 <launch>
-<arg name="xwr_cmd_tty" default="/dev/tty/ACM0"/>
-<arg name="xwr_radar_cfg" default="14xx/indoor_human_rcs"/>
+<arg name="xwr_cmd_tty" default="/dev/ttyUSB0"/>
+<arg name="xwr_radar_cfg" default="18xx/profile_monitor_xwr18xx"/>
 
 <node name="xwr1xxx" pkg="mmWave" type="no_Qt.py" required="true" output="screen"
     args="--cmd_tty $(arg xwr_cmd_tty) $(arg xwr_radar_cfg)"/>
-<node name="xwr1xxx_rd_viz" pkg="mmWave" type="fft_viz.py" />
+    <param name="user_shutdown" type="str" value="" />
+<!-- <node name="xwr1xxx_rd_viz" pkg="mmWave" type="fft_viz.py" /> -->
 </launch>

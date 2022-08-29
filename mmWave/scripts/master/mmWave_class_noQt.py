@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # license removed for brevity
-
-#firmware: xwr18xx_mmw_demo.bin that can send commands from rospkg
-#firmware: mmwave_Studio_cli_xwr18xx.bin that ken uses to trigger rdr with windows mmwave studio cli
+#firmware: xwr18xx_mmw_demo.bin
 import rospy
 from std_msgs.msg import String
 import os
@@ -21,8 +19,7 @@ from radar_config import dict_to_list
 
 
 class mmWave_Sensor():
-
-    # iwr_rec_cmd = ['sensorStop', 'sensorStart']
+    iwr_rec_cmd = ['sensorStop', 'sensorStart']
     # dca1000evm configuration commands; only the ones used are filled in
     # TODO: hardcoded comand values should be changed
     dca_cmd = { \
@@ -54,8 +51,7 @@ class mmWave_Sensor():
 
     capture_started = 0
 
-    data_file = open('/home/user/Desktop/binary','wb')
-    
+    data_file = None
 
     def __init__(self, iwr_cmd_tty='/dev/ttyACM0', iwr_data_tty='/dev/ttyACM1'):
 
@@ -69,10 +65,10 @@ class mmWave_Sensor():
         self.seqn = 0  # this is the last packet index
         self.bytec = 0 # this is a byte counter
         self.q = queue.Queue() #Queue
-        frame_len = 393216 #393216 -  2*rospy.get_param('iwr_cfg/profiles')[0]['adcSamples']*rospy.get_param('iwr_cfg/numLanes')*rospy.get_param('iwr_cfg/numChirps')
-        self.maxim_len = frame_len * 2
+        frame_len = 2*rospy.get_param('iwr_cfg/profiles')[0]['adcSamples']*rospy.get_param('iwr_cfg/numLanes')*rospy.get_param('iwr_cfg/numChirps')
+        print('frame length')
+        print(frame_len)
         self.data_array = ring_buffer(int(2*frame_len), int(frame_len))
-        self.byte_array = bytearray()
 
 
         self.iwr_cmd_tty=iwr_cmd_tty
@@ -88,7 +84,7 @@ class mmWave_Sensor():
         while status:
             try:
                 
-                msg, server = self.dca_socket.recvfrom(4096)
+                msg, server = self.dca_socket.recvfrom(2048)
                 
                 import struct
                 (status,) = struct.unpack('<H', msg[4:6])
@@ -106,7 +102,7 @@ class mmWave_Sensor():
         status = 1
         while status:
             try:
-                msg, server = self.dca_socket.recvfrom(4096)
+                msg, server = self.dca_socket.recvfrom(2048)
                 (status,) = struct.unpack('<H', msg[4:6])
                 print('response_arm')
                 print(status)
@@ -120,8 +116,9 @@ class mmWave_Sensor():
     def setupDCA_and_cfgIWR(self):
         self.dca_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.dca_socket.bind(("192.168.33.30", 4096))#4096))
+        # self.dca_socket.bind(("192.168.1.7", 4096))
         
-        self.dca_socket.settimeout(10)#10
+        self.dca_socket.settimeout(10)
         self.dca_socket_open = True
 
         self.iwr_serial = serial.Serial(port=self.iwr_cmd_tty, baudrate=921600, bytesize=serial.EIGHTBITS,
@@ -133,10 +130,14 @@ class mmWave_Sensor():
 
         # Set up DCA
         print("SET UP DCA")
-        self.dca_socket.sendto(self.dca_cmd['SYSTEM_CONNECT_CMD_CODE'], self.dca_cmd_addr)#sendto
+        self.dca_socket.sendto(self.dca_cmd['SYSTEM_CONNECT_CMD_CODE'], self.dca_cmd_addr)
         import sys
         print(sys.version)
         self.collect_response()
+        print('next')
+        # self.dca_socket.sendto(self.dca_cmd['READ_FPGA_VERSION_CMD_CODE'], self.dca_cmd_addr)
+        
+        # self.collect_response()
         print('next')
         self.dca_socket.sendto(self.dca_cmd['CONFIG_FPGA_GEN_CMD_CODE'], self.dca_cmd_addr)
         self.collect_response()
@@ -147,8 +148,10 @@ class mmWave_Sensor():
         
         print("")
 
+        # configure IWR
+        print("CONFIGURE IWR")
+        #iwr_cfg_cmd = #dict_to_list(rospy.get_param('iwr_cfg'))
         iwr_cfg_cmd = [
-        'sensorStop',
         'dfeDataOutputMode 1',
         'channelCfg 15 7 0',
         'adcCfg 2 1',
@@ -176,8 +179,6 @@ class mmWave_Sensor():
         'pmClkSigMonCfg 1 0',
         'rxIntAnaSigMonCfg 1 0',
         'gpadcSigMonCfg 1',
-        'lvdsStreamCfg -1 0 1 0',
-        'sensorStart'
         ]
         # Send and read a few CR to clear things in buffer. Happens sometimes during power on
         for i in range(5):
@@ -193,10 +194,10 @@ class mmWave_Sensor():
             self.iwr_serial.reset_input_buffer()
             time.sleep(0.010)       # 10 ms delay between characters
             time.sleep(0.100)       # 100 ms delay between lines
-            response = self.iwr_serial.read(size=25)
+            response = self.iwr_serial.read(size=100)
             print('LVDS Stream:/>' + cmd)
             print(response[2:].decode())
-
+            print('yooooo')
         print("")
 
     def arm_dca(self):
@@ -210,80 +211,68 @@ class mmWave_Sensor():
         print("")
 
     def toggle_capture(self, toggle=0, dir_path=''):
-        
-        if not self.dca_socket:# or not self.iwr_serial:
+        if not self.dca_socket or not self.iwr_serial:
             return
-        
+
         # only send command if toggle != status of capture
         if toggle == self.capture_started:
-            
             return
-        
-        # sensor_cmd = self.iwr_rec_cmd[toggle]
-        # for i in range(len(sensor_cmd)):
-        #     # print(sensor_cmd[i])
-        #     # print(sensor_cmd[i].encode('utf-8'))
-        #     self.iwr_serial.write(sensor_cmd[i].encode('utf-8'))
-        #     time.sleep(0.010)   #  10 ms delay between characters
-        # self.iwr_serial.write('\r'.encode())
-        # self.iwr_serial.reset_input_buffer()
-        
-        # time.sleep(0.010)       #  10 ms delay between characters
-        # time.sleep(0.100)       # 100 ms delay between lines
-        # response = self.iwr_serial.read(size=200)
-        # print('LVDS Stream:/>' + sensor_cmd)
-        # print(response.decode('utf-8'))
 
-        # if sensor_cmd == 'sensorStop':
-        #     self.dca_socket.sendto(self.dca_cmd['RECORD_STOP_CMD_CODE'], self.dca_cmd_addr)
-        #     self.collect_response()
-        # self.capture_started = toggle
+        sensor_cmd = self.iwr_rec_cmd[toggle]
+        for i in range(len(sensor_cmd)):
+            # print(sensor_cmd[i])
+            # print(sensor_cmd[i].encode('utf-8'))
+            self.iwr_serial.write(sensor_cmd[i].encode('utf-8'))
+            time.sleep(0.010)   #  10 ms delay between characters
+        self.iwr_serial.write('\r'.encode())
+        self.iwr_serial.reset_input_buffer()
+        
+        time.sleep(0.010)       #  10 ms delay between characters
+        time.sleep(0.100)       # 100 ms delay between lines
+        response = self.iwr_serial.read(size=200)
+        print('LVDS Stream:/>' + sensor_cmd)
+        print(response.decode('utf-8'))
+        print('okayyyyyy')
+        if sensor_cmd == 'sensorStop':
+            self.dca_socket.sendto(self.dca_cmd['RECORD_STOP_CMD_CODE'], self.dca_cmd_addr)
+            self.collect_response()
+        self.capture_started = toggle
 
     def collect_data(self):
         try:
-
-            
-            
-            # a = time.time()
-
-            msg = self.data_socket.recv(4096)
-            self.byte_array.extend(msg[10:])
-
-            # print(len(self.byte_array))
-            seqn, bytec = struct.unpack('<IIxx', msg[:10])
-            print(seqn)
-            if(len(self.byte_array) >= self.maxim_len):
-                # print(len(self.byte_array))
-                a = time.time()
-                self.data_file.write(self.byte_array)
-                self.byte_array.clear()
-                print(time.time()-a)
-            # print(time.time()-a)
-            # a = time.time()
-
-            # print(sys.getsizeof(msg))
-
+            # print('woww')
+            msg, server = self.data_socket.recvfrom(2048)
+            print(msg)
         except Exception as e:
             print(e)
             return
 
-        
-        
+        #self.data_file.write(msg)  # keep to compare rosbag with binary here
+        seqn, bytec = struct.unpack('<IIxx', msg[:10])
+        ##print( 'PYTHON: ' + str(self.seqn) + ' ' + str(seqn) )
+        ## print str(self.seqn) + ' ' + str(seqn) #+ ' ' + str(q.qsize())
+        #py_time_start = time.clock()
+        #if self.seqn + 1 != seqn:
+        #    print("@seq {}-{}: ".format(self.seqn, seqn))
+        #    # make for queue below
+        #    num_zeros = c_longlong((seqn - self.seqn - 1) * 728)
+        #    print ('num zeros ',num_zeros.value)
+        #    #num_zeros = (bytec - self.bytec - 1456)//2 #numer of samples not bytes
+        #    self.data_array.add_zeros(num_zeros)
+        #self.data_array.add_msg(np.frombuffer(msg[10:], dtype=np.int16))
+        #py_time_end = time.clock()
 
+        self.data_array.pad_and_add_msg(self.seqn, seqn, np.frombuffer(msg[10:], dtype=np.int16))
+        #c_time_end = time.clock()
 
-        
+        #print("Python took " + str(py_time_end - py_time_start) + ", c took " + str(c_time_end - py_time_end) )
 
-        # self.data_file.write(msg[10:])  # keep to compare rosbag with binary here
+        self.seqn = seqn
+        self.bytec = bytec
 
-        # print(sys.getsizeof(msg[10:]))
-        # self.data_array.pad_and_add_msg(self.seqn, seqn, np.frombuffer(msg[10:], dtype=np.int16))
-
-        # self.seqn = seqn
-        # self.bytec = bytec
-        # print(time.time()-a)
-
-        # 'flushCfg',
-        # 'dfeDataOutputMode 1',
+# WORKING CONFIG
+# iwr_cfg_cmd = [
+#         'dfeDataOutputMode 1',
         # 'channelCfg 15 7 0',
         # 'adcCfg 2 1',
         # 'adcbufCfg -1 0 1 1 1',

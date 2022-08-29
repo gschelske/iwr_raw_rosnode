@@ -75,13 +75,13 @@ class mmWave_Sensor():
         self.byte_array = bytearray()
 
 
-        self.iwr_cmd_tty=iwr_cmd_tty
-        self.iwr_data_tty=iwr_data_tty
+        # self.iwr_cmd_tty=iwr_cmd_tty
+        # self.iwr_data_tty=iwr_data_tty
 
     def close(self):
         self.dca_socket.close()
         self.data_socket.close()
-        self.iwr_serial.close()
+        # self.iwr_serial.close()
 
     def collect_response(self):
         status = 1
@@ -120,15 +120,16 @@ class mmWave_Sensor():
     def setupDCA_and_cfgIWR(self):
         self.dca_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.dca_socket.bind(("192.168.33.30", 4096))#4096))
+        # self.dca_socket.bind(("192.168.1.7", 4096))
         
         self.dca_socket.settimeout(10)#10
         self.dca_socket_open = True
 
-        self.iwr_serial = serial.Serial(port=self.iwr_cmd_tty, baudrate=921600, bytesize=serial.EIGHTBITS,
-                                        parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=0.100)
-        self.serial_open = self.iwr_serial.is_open
+        # self.iwr_serial = serial.Serial(port=self.iwr_cmd_tty, baudrate=115200, bytesize=serial.EIGHTBITS,
+        #                                 parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, timeout=0.100)
+        # self.serial_open = self.iwr_serial.is_open
 
-        if not self.dca_socket or not self.iwr_serial:
+        if not self.dca_socket:# or not self.iwr_serial:
             return
 
         # Set up DCA
@@ -148,7 +149,6 @@ class mmWave_Sensor():
         print("")
 
         iwr_cfg_cmd = [
-        'sensorStop',
         'dfeDataOutputMode 1',
         'channelCfg 15 7 0',
         'adcCfg 2 1',
@@ -176,28 +176,26 @@ class mmWave_Sensor():
         'pmClkSigMonCfg 1 0',
         'rxIntAnaSigMonCfg 1 0',
         'gpadcSigMonCfg 1',
-        'lvdsStreamCfg -1 0 1 0',
-        'sensorStart'
         ]
         # Send and read a few CR to clear things in buffer. Happens sometimes during power on
-        for i in range(5):
-            self.iwr_serial.write('\r'.encode())
-            self.iwr_serial.reset_input_buffer()
-            time.sleep(.1)
+        # for i in range(5):
+        #     self.iwr_serial.write('\n'.encode())
+        #     self.iwr_serial.reset_input_buffer()
+        #     time.sleep(.1)
 
-        for cmd in iwr_cfg_cmd:
-            for i in range(len(cmd)):
-                self.iwr_serial.write(cmd[i].encode('utf-8'))
-                time.sleep(0.010)  # 10 ms delay between characters
-            self.iwr_serial.write('\r'.encode())
-            self.iwr_serial.reset_input_buffer()
-            time.sleep(0.010)       # 10 ms delay between characters
-            time.sleep(0.100)       # 100 ms delay between lines
-            response = self.iwr_serial.read(size=25)
-            print('LVDS Stream:/>' + cmd)
-            print(response[2:].decode())
+        # for cmd in iwr_cfg_cmd:
+        #     for i in range(len(cmd)):
+        #         self.iwr_serial.write(cmd[i].encode('utf-8'))
+        #         time.sleep(0.010)  # 10 ms delay between characters
+        #     self.iwr_serial.write('\r'.encode())
+        #     self.iwr_serial.reset_input_buffer()
+        #     time.sleep(0.010)       # 10 ms delay between characters
+        #     time.sleep(0.100)       # 100 ms delay between lines
+        #     response = self.iwr_serial.read(size=100)
+        #     print('LVDS Stream:/>' + cmd)
+        #     print(response[2:].decode())
 
-        print("")
+        # print("")
 
     def arm_dca(self):
         if not self.dca_socket:
